@@ -59,9 +59,16 @@ impl Sim {
 
     fn handle_try_start(&mut self, m: MachId) {
         debug!(?m, time = self.time, "try_start");
-        let (busy, input, output, speed) = {
+        let (busy, input, output, speed, min_input, output_amount) = {
             let machine = self.machines.get_mut(&m).unwrap();
-            (machine.busy, machine.input, machine.output, machine.speed)
+            (
+                machine.busy,
+                machine.input,
+                machine.output,
+                machine.speed,
+                machine.min_input,
+                machine.output_amount,
+            )
         };
         // Check if machine in busy
         if busy {
@@ -71,7 +78,7 @@ impl Sim {
         // Check if output buffer is ready to recieve
         {
             let out = self.buffers.get(&output).unwrap();
-            if out.amount == out.capacity {
+            if out.capacity - out.amount < output_amount {
                 trace!(?m, "output full; skipping");
                 return;
             }
@@ -79,12 +86,12 @@ impl Sim {
         // Check if the input buffer has the stuff
         {
             let inp = self.buffers.get_mut(&input).unwrap();
-            if inp.amount < 1 {
+            if inp.amount < min_input {
                 trace!(?m, "input empty; skipping");
                 return;
             }
             // take items into machine
-            inp.amount -= 1;
+            inp.amount -= min_input;
         }
 
         let machine = self.machines.get_mut(&m).unwrap();
@@ -105,7 +112,7 @@ impl Sim {
         }
         machine.busy = false;
         let output = self.buffers.get_mut(&machine.output).unwrap();
-        output.amount += 1;
+        output.amount += machine.output_amount;
 
         self.handle_try_start(m);
     }
