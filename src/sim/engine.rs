@@ -1,0 +1,117 @@
+use std::collections::{BinaryHeap, HashMap};
+
+use crate::sim::{BufId, Buffer, Event, EventKind, MachId, Machine};
+
+pub struct Sim {
+    pub time: f64,
+    pub events: BinaryHeap<Event>,
+    pub machines: HashMap<MachId, Machine>,
+    pub buffers: HashMap<BufId, Buffer>,
+}
+
+impl Default for Sim {
+    fn default() -> Self {
+        Self {
+            time: 0.0,
+            events: BinaryHeap::new(),
+            machines: HashMap::new(),
+            buffers: HashMap::new(),
+        }
+    }
+}
+impl Sim {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn schedule(&mut self, event: Event) {
+        self.events.push(event);
+    }
+
+    fn handle_event(&mut self, event: Event) {
+        // Check status of everything. If there's an inactive machine, try and activate it.
+
+        match event.kind {
+            EventKind::TryStart(mid) => self.handle_try_start(mid),
+            EventKind::Finish(mid) => self.handle_finish(mid),
+            _ => todo!(),
+        }
+    }
+
+    fn handle_try_start(&mut self, m: MachId) {
+        println!("Trying to start machine {:?}", m);
+        let (busy, input, output, speed) = {
+            let machine = self.machines.get_mut(&m).unwrap();
+            (machine.busy, machine.input, machine.output, machine.speed)
+        };
+        // Check if machine in busy
+        if busy {
+            println!("Couldn't start machine {:?} because it's busy", m);
+            return;
+        }
+        // Check if output buffer is ready to recieve
+        {
+            let out = self.buffers.get(&output).unwrap();
+            if out.amount == out.capacity {
+                println!(
+                    "Couldn't start machine {:?} because the output buffer is full",
+                    m
+                );
+                return;
+            }
+        }
+        // Check if the input buffer has the stuff
+        {
+            let inp = self.buffers.get_mut(&input).unwrap();
+            if inp.amount < 1 {
+                println!(
+                    "Couldn't start machine {:?} because the input buffer is empty",
+                    m
+                );
+                return;
+            }
+            // take items into machine
+            inp.amount -= 1;
+        }
+
+        let machine = self.machines.get_mut(&m).unwrap();
+        machine.busy = true;
+        // Schedule the finish event
+        let finish_time = self.time + 1.0 / speed;
+        let finish_event = Event {
+            kind: EventKind::Finish(m),
+            time: finish_time,
+        };
+        self.schedule(finish_event);
+    }
+
+    fn handle_finish(&mut self, m: MachId) {
+        let machine = self.machines.get_mut(&m).unwrap();
+        if !machine.busy {
+            // Raise some sort of error
+        }
+        machine.busy = false;
+        let output = self.buffers.get_mut(&machine.output).unwrap();
+        output.amount += 1;
+
+        self.handle_try_start(m);
+    }
+    pub fn run(&mut self, until: f64) {
+        while let Some(ev) = self.events.pop() {
+            self.time = ev.time;
+            if self.time > until {
+                break;
+            }
+            self.handle_event(ev);
+            self.print_state();
+        }
+    }
+
+    pub fn print_state(&self) {
+        println!("Sim report @ {}", self.time);
+        for b in self.buffers.iter() {
+            println!("{:?}", b);
+        }
+        println!("----------------------------------");
+    }
+}
