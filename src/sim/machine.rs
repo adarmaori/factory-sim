@@ -11,20 +11,24 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(
-        input: BufId,
-        output: BufId,
-        min_input: usize,
-        output_amount: usize,
-        speed: f64,
-    ) -> Self {
+    pub fn new(input: BufId, output: BufId, speed: f64) -> Self {
         Self {
             input,
             output,
-            min_input,
-            output_amount,
+            min_input: 1,
+            output_amount: 1,
             speed,
             busy: false,
+        }
+    }
+
+    pub fn with_min_input(&self, min_input: usize) -> Self {
+        Self { min_input, ..*self }
+    }
+    pub fn with_output_amount(&self, output_amount: usize) -> Self {
+        Self {
+            output_amount,
+            ..*self
         }
     }
 }

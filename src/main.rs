@@ -2,7 +2,7 @@ use factory_sim::prelude::*;
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter("trace")
         .with_target(false)
         .compact()
         .init();
@@ -14,8 +14,12 @@ fn main() {
     let mut sim = Sim::new();
     sim.buffers.insert(iron, Buffer::new(100, 75));
     sim.buffers.insert(gear, Buffer::new(100, 50));
-    sim.machines
-        .insert(asm, Machine::new(iron, gear, 2, 2, 2.0));
+    sim.machines.insert(
+        asm,
+        Machine::new(iron, gear, 2.0)
+            .with_min_input(2)
+            .with_output_amount(2),
+    );
 
     sim.schedule(Event {
         time: 0.0,
@@ -33,4 +37,3 @@ fn main() {
         sim.time, sim.buffers[&iron].amount, sim.buffers[&gear].amount
     );
 }
-
