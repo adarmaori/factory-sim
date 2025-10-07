@@ -1,5 +1,5 @@
 use std::collections::{BinaryHeap, HashMap};
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::sim::{BufId, Buffer, Event, EventKind, MachId, Machine};
 
@@ -35,8 +35,28 @@ impl Sim {
         match event.kind {
             EventKind::TryStart(mid) => self.handle_try_start(mid),
             EventKind::Finish(mid) => self.handle_finish(mid),
+            EventKind::SetBuffer(bid, amount) => self.handle_set_buffer(bid, amount),
+            EventKind::ClearBuffer(bid) => self.handle_set_buffer(bid, 0),
             _ => todo!(),
         }
+    }
+
+    fn handle_set_buffer(&mut self, b: BufId, amount: usize) {
+        debug!(?b, time = self.time, "set_buffer");
+        let buf = self.buffers.get_mut(&b).unwrap();
+        if amount > buf.capacity {
+            error!(
+                ?b,
+                time = self.time,
+                amount = amount,
+                capacity = buf.capacity,
+                "tried to overfill buffer."
+            );
+            buf.amount = buf.capacity; // Should this be the default? Maybe just not fill it at all
+        } else {
+            buf.amount = amount;
+        }
+        info!(?b, time = self.time, "setting buffer");
     }
 
     fn handle_try_start(&mut self, m: MachId) {

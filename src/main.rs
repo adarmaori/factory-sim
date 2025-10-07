@@ -20,6 +20,11 @@ fn main() {
         time: 0.0,
         kind: EventKind::TryStart(asm),
     });
+
+    sim.schedule(Event {
+        time: 50.0,
+        kind: EventKind::SetBuffer(gear, 250),
+    });
     sim.run(100.0);
 
     println!(

@@ -7,7 +7,7 @@ pub enum EventKind {
     Finish(MachId),     // Ending a build process
     ClearBuffer(BufId), // Removing everything from a buffer to allow refilling (Could connect to
     // the logistics network thing later)
-    FillBuffer(BufId, usize), // Add some items to the buffer
+    SetBuffer(BufId, usize), // Add some items to the buffer
 }
 
 #[derive(Debug)]
