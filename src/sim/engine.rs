@@ -1,4 +1,5 @@
 use std::collections::{BinaryHeap, HashMap};
+use tracing::{debug, info, trace, warn};
 
 use crate::sim::{BufId, Buffer, Event, EventKind, MachId, Machine};
 
@@ -39,24 +40,21 @@ impl Sim {
     }
 
     fn handle_try_start(&mut self, m: MachId) {
-        println!("Trying to start machine {:?}", m);
+        debug!(?m, time = self.time, "try_start");
         let (busy, input, output, speed) = {
             let machine = self.machines.get_mut(&m).unwrap();
             (machine.busy, machine.input, machine.output, machine.speed)
         };
         // Check if machine in busy
         if busy {
-            println!("Couldn't start machine {:?} because it's busy", m);
+            trace!(?m, "machine busy; skipping");
             return;
         }
         // Check if output buffer is ready to recieve
         {
             let out = self.buffers.get(&output).unwrap();
             if out.amount == out.capacity {
-                println!(
-                    "Couldn't start machine {:?} because the output buffer is full",
-                    m
-                );
+                trace!(?m, "output full; skipping");
                 return;
             }
         }
@@ -64,10 +62,7 @@ impl Sim {
         {
             let inp = self.buffers.get_mut(&input).unwrap();
             if inp.amount < 1 {
-                println!(
-                    "Couldn't start machine {:?} because the input buffer is empty",
-                    m
-                );
+                trace!(?m, "input empty; skipping");
                 return;
             }
             // take items into machine
@@ -108,10 +103,14 @@ impl Sim {
     }
 
     pub fn print_state(&self) {
-        println!("Sim report @ {}", self.time);
-        for b in self.buffers.iter() {
-            println!("{:?}", b);
+        trace!(time = self.time, "tick");
+        for (id, buf) in &self.buffers {
+            debug!(
+                ?id,
+                amount = buf.amount,
+                capacity = buf.capacity,
+                "buffer_state"
+            );
         }
-        println!("----------------------------------");
     }
 }

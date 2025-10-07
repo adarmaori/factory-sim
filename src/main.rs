@@ -1,7 +1,11 @@
 use factory_sim::prelude::*;
 
 fn main() {
-    tracing_subscriber::fmt().with_env_filter("info").init();
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_target(false)
+        .compact()
+        .init();
 
     let iron = BufId(0);
     let gear = BufId(1);
