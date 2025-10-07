@@ -14,7 +14,8 @@ fn main() {
     let mut sim = Sim::new();
     sim.buffers.insert(iron, Buffer::new(100, 75));
     sim.buffers.insert(gear, Buffer::new(100, 50));
-    sim.machines.insert(asm, Machine::new(iron, gear, 2.0));
+    sim.machines
+        .insert(asm, Machine::new(iron, gear, 2, 2, 2.0));
 
     sim.schedule(Event {
         time: 0.0,
@@ -22,8 +23,8 @@ fn main() {
     });
 
     sim.schedule(Event {
-        time: 50.0,
-        kind: EventKind::SetBuffer(gear, 250),
+        time: 30.0,
+        kind: EventKind::ClearBuffer(gear),
     });
     sim.run(100.0);
 

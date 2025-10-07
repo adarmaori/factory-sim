@@ -1,5 +1,5 @@
 use std::collections::{BinaryHeap, HashMap};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 
 use crate::sim::{BufId, Buffer, Event, EventKind, MachId, Machine};
 
@@ -31,13 +31,11 @@ impl Sim {
 
     fn handle_event(&mut self, event: Event) {
         // Check status of everything. If there's an inactive machine, try and activate it.
-
         match event.kind {
             EventKind::TryStart(mid) => self.handle_try_start(mid),
             EventKind::Finish(mid) => self.handle_finish(mid),
             EventKind::SetBuffer(bid, amount) => self.handle_set_buffer(bid, amount),
             EventKind::ClearBuffer(bid) => self.handle_set_buffer(bid, 0),
-            _ => todo!(),
         }
     }
 
@@ -118,6 +116,14 @@ impl Sim {
                 break;
             }
             self.handle_event(ev);
+            let to_try: Vec<MachId> = self
+                .machines
+                .iter()
+                .filter_map(|(mid, machine)| if !machine.busy { Some(*mid) } else { None })
+                .collect();
+            for mid in to_try {
+                self.handle_try_start(mid);
+            }
             self.print_state();
         }
     }
