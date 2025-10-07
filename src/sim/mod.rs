@@ -1,6 +1,7 @@
 pub mod buffer;
 pub mod engine;
 pub mod event;
+pub mod handlers;
 pub mod ids;
 pub mod machine;
 
