@@ -31,7 +31,7 @@ impl PartialOrd for Event {
 }
 impl Ord for Event {
     fn cmp(&self, o: &Self) -> Ordering {
-        if self.seq.is_none() | o.seq.is_none() {
+        if self.seq.is_none() || o.seq.is_none() {
             panic!("Tried to compare events with no seq value");
         }
         if self.seq == o.seq {
