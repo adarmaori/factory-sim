@@ -1,4 +1,3 @@
-use super::handlers;
 use super::{BufId, Buffer, Event, EventKind, MachId, Machine};
 use std::collections::{BinaryHeap, HashMap};
 use tracing::{debug, trace};
@@ -6,7 +5,9 @@ use tracing::{debug, trace};
 pub struct Sim {
     pub time: f64,
     pub events: BinaryHeap<Event>,
-    pub event_seq: usize,
+    next_event_seq: usize,
+    pub next_mach_id: usize,
+    pub next_buf_id: usize,
     pub machines: HashMap<MachId, Machine>,
     pub buffers: HashMap<BufId, Buffer>,
     pub on_change: Option<fn(&mut Self)>,
@@ -17,7 +18,9 @@ impl Default for Sim {
         Self {
             time: 0.0,
             events: BinaryHeap::new(),
-            event_seq: 0,
+            next_event_seq: 0,
+            next_mach_id: 0,
+            next_buf_id: 0,
             machines: HashMap::new(),
             buffers: HashMap::new(),
             on_change: None,
@@ -31,27 +34,37 @@ impl Sim {
     }
 
     pub fn schedule(&mut self, event: Event) {
+        if event.time <= self.time {
+            panic!("Tried to schedule event in the past or instantaneously");
+        }
         self.events.push(Event {
-            seq: Some(self.event_seq),
+            seq: Some(self.next_event_seq),
             ..event
         });
-        self.event_seq += 1;
+        self.next_event_seq += 1;
     }
 
     pub fn schedule_at(&mut self, time: f64, kind: EventKind) {
-        self.events.push(Event {
+        let e = Event {
             time,
             kind,
-            seq: Some(self.event_seq),
-        });
-        self.event_seq += 1;
+            seq: Some(self.next_event_seq),
+        };
+        self.schedule(e);
     }
+
+    pub fn schedule_in(&mut self, time: f64, kind: EventKind) {
+        self.schedule_at(self.time + time, kind);
+    }
+
     fn handle_event(&mut self, event: Event) {
         match event.kind {
             EventKind::TryStart(mid) => self.handle_try_start(mid),
             EventKind::Finish(mid) => self.handle_finish(mid),
             EventKind::SetBuffer(bid, amount) => self.handle_set_buffer(bid, amount),
             EventKind::ClearBuffer(bid) => self.handle_set_buffer(bid, 0),
+            EventKind::AddToBuffer(bid, amount) => self.handle_add_to_buffer(bid, amount),
+            EventKind::TakeFromBuffer(bid, amount) => self.handle_take_from_buffer(bid, amount),
         }
         if let Some(func) = self.on_change {
             func(self);

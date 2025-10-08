@@ -1,13 +1,14 @@
 use crate::prelude::{BufId, MachId};
 use std::cmp::Ordering;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventKind {
-    TryStart(MachId),   // Starting a build process
-    Finish(MachId),     // Ending a build process
-    ClearBuffer(BufId), // Removing everything from a buffer to allow refilling (Could connect to
-    // the logistics network thing later)
-    SetBuffer(BufId, usize), // Add some items to the buffer
+    TryStart(MachId),             // Starting a build process
+    Finish(MachId),               // Ending a build process
+    ClearBuffer(BufId),           // Removing everything from a buffer to allow refilling
+    SetBuffer(BufId, usize),      // Add some items to the buffer
+    AddToBuffer(BufId, usize),    // Add some items to the buffer
+    TakeFromBuffer(BufId, usize), // Add some items to the buffer
 }
 
 #[derive(Debug)]
@@ -30,7 +31,7 @@ impl PartialOrd for Event {
 }
 impl Ord for Event {
     fn cmp(&self, o: &Self) -> Ordering {
-        if (self.seq == None) | (o.seq == None) {
+        if self.seq.is_none() | o.seq.is_none() {
             panic!("Tried to compare events with no seq value");
         }
         if self.seq == o.seq {

@@ -1,60 +1,82 @@
-use crate::sim::{Event, EventKind, MachId, Sim};
-use tracing::{debug, error, info, trace, warn};
+use crate::sim::{EventKind, MachId, Machine, Sim};
+use tracing::{debug, error, info, trace};
 
 impl Sim {
+    pub fn add_machine(&mut self, machine: Machine) -> MachId {
+        let id = MachId(self.next_mach_id);
+        self.machines.insert(id, machine);
+        self.next_mach_id += 1;
+        id
+    }
     pub(crate) fn handle_try_start(&mut self, m: MachId) {
         debug!(?m, time = self.time, "try_start");
-        let (busy, input, output, speed, min_input, output_amount) = {
-            let machine = self.machines.get_mut(&m).unwrap();
-            (
-                machine.busy,
-                machine.input,
-                machine.output,
-                machine.speed,
-                machine.min_input,
-                machine.output_amount,
-            )
-        };
-        // Check if machine in busy
-        if busy {
-            trace!(?m, "machine busy; skipping");
+
+        // verify inputs exist and have enough
+        let machine = self.machines.get_mut(&m).unwrap();
+        if machine.busy {
+            debug!(?m, time = self.time, "machine is busy; skipping");
             return;
         }
-        // Check if output buffer is ready to recieve
-        {
-            let out = self.buffers.get(&output).unwrap();
-            if out.capacity - out.amount < output_amount {
-                trace!(?m, "output full; skipping");
-                return;
+        // print!("is_connected: {}", machine.is_connected());
+        for &(item_id, count) in machine.requires.iter() {
+            if let Some(bid) = machine.input.get(&item_id) {
+                let b = self.buffers.get(bid).unwrap();
+                if b.amount < count {
+                    return;
+                }
+            } else {
+                panic!("Buffer not connected for item: {:?}", item_id);
             }
-        }
-        // Check if the input buffer has the stuff
-        {
-            let inp = self.buffers.get_mut(&input).unwrap();
-            if inp.amount < min_input {
-                trace!(?m, "input empty; skipping");
-                return;
-            }
-            // take items into machine
-            inp.amount -= min_input;
         }
 
-        let machine = self.machines.get_mut(&m).unwrap();
+        // verify outputs exist and have enough space
+        for &(item_id, count) in machine.creates.iter() {
+            if let Some(bid) = machine.output.get(&item_id) {
+                let b = self.buffers.get(bid).unwrap();
+                if b.capacity - b.amount < count {
+                    return;
+                }
+            } else {
+                panic!("Buffer not connected for item: {:?}", item_id);
+            }
+        }
+
+        // Remove items from input buffers
+        for &(item_id, count) in machine.requires.iter() {
+            let bid = machine.input.get(&item_id).unwrap();
+            let b = self.buffers.get_mut(bid).unwrap();
+            b.amount -= count;
+            info!(
+                "Filling machine {:?} with item {:?} from buffer {:?}",
+                m, item_id, bid
+            );
+        }
+
         machine.busy = true;
         // Schedule the finish event
-        let finish_time = self.time + 1.0 / speed;
-        self.schedule_at(finish_time, EventKind::Finish(m));
+        let finish_time = 1.0 / machine.speed;
+        self.schedule_in(finish_time, EventKind::Finish(m));
     }
 
     pub(crate) fn handle_finish(&mut self, m: MachId) {
         let machine = self.machines.get_mut(&m).unwrap();
         if !machine.busy {
             // Raise some sort of error
+            error!(?m, "Trying to stop a machine that is inactive");
         }
         machine.busy = false;
-        let output = self.buffers.get_mut(&machine.output).unwrap();
-        output.amount += machine.output_amount;
 
-        self.handle_try_start(m);
+        for &(item_id, count) in machine.creates.iter() {
+            if let Some(bid) = machine.output.get(&item_id) {
+                let b = self.buffers.get_mut(bid).unwrap();
+                if b.capacity - b.amount < count {
+                    panic!("Trying to overfill a buffer");
+                } else {
+                    b.amount += count;
+                }
+            } else {
+                panic!("Not connected to all the required buffers");
+            }
+        }
     }
 }
