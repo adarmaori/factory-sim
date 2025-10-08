@@ -1,5 +1,6 @@
 use crate::sim::{EventKind, MachId, Machine, Sim};
-use tracing::{debug, error, info, trace};
+use anyhow::{Context, Error};
+use tracing::{debug, info};
 
 impl Sim {
     pub fn add_machine(&mut self, machine: Machine) -> MachId {
@@ -58,12 +59,11 @@ impl Sim {
         self.schedule_in(finish_time, EventKind::Finish(m));
     }
 
-    pub(crate) fn handle_finish(&mut self, m: MachId) {
-        let machine = self.machines.get_mut(&m).unwrap();
-        if !machine.busy {
-            // Raise some sort of error
-            error!(?m, "Trying to stop a machine that is inactive");
-        }
+    pub(crate) fn handle_finish(&mut self, m: MachId) -> Result<(), Error> {
+        let machine = self
+            .machines
+            .get_mut(&m)
+            .context("Failed to access machine data")?;
         machine.busy = false;
 
         for &(item_id, count) in machine.creates.iter() {
@@ -78,5 +78,6 @@ impl Sim {
                 panic!("Not connected to all the required buffers");
             }
         }
+        Ok(())
     }
 }

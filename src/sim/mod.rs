@@ -4,9 +4,11 @@ pub mod event;
 pub mod handlers;
 pub mod ids;
 pub mod machine;
+pub mod sim_error;
 
 pub use buffer::Buffer;
 pub use engine::Sim;
 pub use event::{Event, EventKind};
 pub use ids::{BufId, MachId};
 pub use machine::Machine;
+pub use sim_error::SimError;
