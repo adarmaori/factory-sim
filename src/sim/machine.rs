@@ -12,6 +12,9 @@ pub struct Machine {
 
 impl Machine {
     pub fn new(input: BufId, output: BufId, speed: f64) -> Self {
+        if speed <= 0.0 {
+            panic!("Tried to create machine with non-positive speed");
+        }
         Self {
             input,
             output,

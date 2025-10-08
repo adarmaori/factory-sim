@@ -13,6 +13,7 @@ pub enum EventKind {
 #[derive(Debug)]
 pub struct Event {
     pub time: f64,
+    pub seq: Option<usize>,
     pub kind: EventKind,
 }
 
@@ -29,6 +30,14 @@ impl PartialOrd for Event {
 }
 impl Ord for Event {
     fn cmp(&self, o: &Self) -> Ordering {
-        o.time.partial_cmp(&self.time).unwrap_or(Ordering::Equal)
+        if (self.seq == None) | (o.seq == None) {
+            panic!("Tried to compare events with no seq value");
+        }
+        if self.seq == o.seq {
+            panic!("Tried to compare events with the same seq value");
+        }
+        o.time
+            .partial_cmp(&self.time)
+            .unwrap_or(self.seq.partial_cmp(&o.seq).unwrap())
     }
 }

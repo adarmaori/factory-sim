@@ -43,11 +43,7 @@ impl Sim {
         machine.busy = true;
         // Schedule the finish event
         let finish_time = self.time + 1.0 / speed;
-        let finish_event = Event {
-            kind: EventKind::Finish(m),
-            time: finish_time,
-        };
-        self.schedule(finish_event);
+        self.schedule_at(finish_time, EventKind::Finish(m));
     }
 
     pub(crate) fn handle_finish(&mut self, m: MachId) {
