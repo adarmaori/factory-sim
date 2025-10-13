@@ -20,3 +20,6 @@ Every factory needs someone, or some function to manage it. In this case, after 
 - [ ] Tests: Add creation and unit-tests for all the individual modules, and some E2E tests for the engine itself.
 - [ ] Manager global state: Find a way to store and modify the manager's knowledge so it doesn't need to be computed every time.
 - [ ] Containers: A bit different from the others (And maybe for after I've got a stable, tested and clean V0.1). I want to be able to take closed sets of machines and buffers and containerize them in a new machine, with only the set's inputs and outputs available for changing outside of it. This seems useful as a way to build abstraction, and should be possible with the current system (maybe slightly modifying the API, not sure yet).
+
+- [ ] Randomization: Add things like QC fails, random time for completion, machine breakdowns, and reliability metrics along with the time metrics, which reminds me:
+- [ ] Metrics: Summarize throughput, reliability, footprint, cost(?) to allow for intelligent system modeling

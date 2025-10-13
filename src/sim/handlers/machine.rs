@@ -1,5 +1,5 @@
-use crate::sim::{EventKind, MachId, Machine, Sim};
-use anyhow::{Context, Error};
+use crate::sim::{BufId, EventKind, MachId, Machine, Sim, SimError};
+use anyhow::Result;
 use tracing::{debug, info};
 
 impl Sim {
@@ -9,75 +9,100 @@ impl Sim {
         self.next_mach_id += 1;
         id
     }
-    pub(crate) fn handle_try_start(&mut self, m: MachId) {
-        debug!(?m, time = self.time, "try_start");
 
-        // verify inputs exist and have enough
-        let machine = self.machines.get_mut(&m).unwrap();
-        if machine.busy {
-            debug!(?m, time = self.time, "machine is busy; skipping");
-            return;
+    pub fn get_machine(&self, m: MachId) -> Result<&Machine, SimError> {
+        if let Some(res) = self.machines.get(&m) {
+            Ok(res)
+        } else {
+            Err(SimError::MachineDoesntExist(m))
         }
-        // print!("is_connected: {}", machine.is_connected());
-        for &(item_id, count) in machine.requires.iter() {
-            if let Some(bid) = machine.input.get(&item_id) {
-                let b = self.buffers.get(bid).unwrap();
-                if b.amount < count {
-                    return;
-                }
-            } else {
-                panic!("Buffer not connected for item: {:?}", item_id);
-            }
-        }
-
-        // verify outputs exist and have enough space
-        for &(item_id, count) in machine.creates.iter() {
-            if let Some(bid) = machine.output.get(&item_id) {
-                let b = self.buffers.get(bid).unwrap();
-                if b.capacity - b.amount < count {
-                    return;
-                }
-            } else {
-                panic!("Buffer not connected for item: {:?}", item_id);
-            }
-        }
-
-        // Remove items from input buffers
-        for &(item_id, count) in machine.requires.iter() {
-            let bid = machine.input.get(&item_id).unwrap();
-            let b = self.buffers.get_mut(bid).unwrap();
-            b.amount -= count;
-            info!(
-                "Filling machine {:?} with item {:?} from buffer {:?}",
-                m, item_id, bid
-            );
-        }
-
-        machine.busy = true;
-        // Schedule the finish event
-        let finish_time = 1.0 / machine.speed;
-        self.schedule_in(finish_time, EventKind::Finish(m));
     }
 
-    pub(crate) fn handle_finish(&mut self, m: MachId) -> Result<(), Error> {
-        let machine = self
-            .machines
-            .get_mut(&m)
-            .context("Failed to access machine data")?;
-        machine.busy = false;
-
-        for &(item_id, count) in machine.creates.iter() {
-            if let Some(bid) = machine.output.get(&item_id) {
-                let b = self.buffers.get_mut(bid).unwrap();
-                if b.capacity - b.amount < count {
-                    panic!("Trying to overfill a buffer");
-                } else {
-                    b.amount += count;
-                }
-            } else {
-                panic!("Not connected to all the required buffers");
-            }
+    pub fn get_machine_mut(&mut self, m: MachId) -> Result<&mut Machine, SimError> {
+        if let Some(res) = self.machines.get_mut(&m) {
+            Ok(res)
+        } else {
+            Err(SimError::MachineDoesntExist(m))
         }
-        Ok(())
+    }
+
+    pub(crate) fn handle_try_start(&mut self, m: MachId) -> Result<bool, SimError> {
+        debug!(?m, time = self.time, "try_start");
+
+        let input_takes: Vec<(BufId, usize)> = {
+            let machine = self.get_machine(m)?;
+            if machine.busy {
+                debug!(?m, time = self.time, "machine is busy; skipping");
+                return Ok(false);
+            }
+
+            // Validate inputs and collect which buffers/amounts to take
+            let mut takes = Vec::with_capacity(machine.requires.len());
+            for &(item_id, count) in machine.requires.iter() {
+                if let Some(&bid) = machine.input.get(&item_id) {
+                    let b = self.get_buffer(bid)?;
+                    if b.amount < count {
+                        return Ok(false);
+                    }
+                    takes.push((bid, count));
+                } else {
+                    return Err(SimError::ItemHasNoBuffer(item_id));
+                }
+            }
+
+            // Validate outputs have enough space
+            for &(item_id, count) in machine.creates.iter() {
+                if let Some(&bid) = machine.output.get(&item_id) {
+                    let b = self.get_buffer(bid)?;
+                    if b.capacity - b.amount < count {
+                        return Ok(false);
+                    }
+                } else {
+                    return Err(SimError::ItemHasNoBuffer(item_id));
+                }
+            }
+
+            takes
+        };
+
+        for &(bid, count) in &input_takes {
+            let b = self.get_buffer_mut(bid)?;
+            b.amount -= count;
+            info!("Filling machine {:?} from buffer {:?}", m, bid);
+        }
+
+        let machine = self.get_machine_mut(m)?;
+        machine.busy = true;
+        let finish_time = 1.0 / machine.speed;
+        self.schedule_in(finish_time, EventKind::Finish(m));
+
+        Ok(true)
+    }
+
+    pub(crate) fn handle_finish(&mut self, m: MachId) -> Result<bool, SimError> {
+        let machine = self.get_machine_mut(m)?;
+        if !machine.busy {
+            return Err(SimError::InvalidCommand(
+                "Trying to stop an inactive machine".to_string(),
+            ));
+        }
+        machine.busy = false;
+        let additions: Vec<(BufId, usize)> = {
+            let mut res = vec![];
+            for &(item_id, count) in machine.creates.iter() {
+                if let Some(bid) = machine.output.get(&item_id) {
+                    res.push((*bid, count));
+                } else {
+                    // Return Error
+                    return Err(SimError::ItemHasNoBuffer(item_id));
+                }
+            }
+            res
+        };
+        for addition in additions {
+            let buf = self.get_buffer_mut(addition.0)?;
+            buf.add_amount(addition.1)?;
+        }
+        Ok(true)
     }
 }

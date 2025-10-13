@@ -1,3 +1,5 @@
+use crate::sim::SimError;
+
 use super::{BufId, Buffer, Event, EventKind, MachId, Machine};
 use std::collections::{BinaryHeap, HashMap};
 use tracing::{debug, trace};
@@ -57,17 +59,24 @@ impl Sim {
         self.schedule_at(self.time + time, kind);
     }
 
-    fn handle_event(&mut self, event: Event) {
-        match event.kind {
+    fn handle_event(&mut self, event: Event) -> Result<(), SimError> {
+        let event_result = match event.kind {
             EventKind::TryStart(mid) => self.handle_try_start(mid),
             EventKind::Finish(mid) => self.handle_finish(mid),
             EventKind::SetBuffer(bid, amount) => self.handle_set_buffer(bid, amount),
             EventKind::ClearBuffer(bid) => self.handle_set_buffer(bid, 0),
             EventKind::AddToBuffer(bid, amount) => self.handle_add_to_buffer(bid, amount),
             EventKind::TakeFromBuffer(bid, amount) => self.handle_take_from_buffer(bid, amount),
-        }
-        if let Some(func) = self.on_change {
-            func(self);
+        };
+        match event_result {
+            Err(e) => Err(e),
+            Ok(false) => Ok(()),
+            Ok(true) => {
+                if let Some(func) = self.on_change {
+                    func(self);
+                }
+                Ok(())
+            }
         }
     }
 
@@ -81,8 +90,13 @@ impl Sim {
             if self.time > until {
                 break;
             }
-            self.handle_event(ev);
-            self.print_state();
+            let res = self.handle_event(ev);
+            if res.is_ok() {
+                self.print_state();
+            } else {
+                print!("{:?}", res);
+                break;
+            }
         }
     }
 

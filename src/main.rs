@@ -32,7 +32,7 @@ fn main() {
     );
 
     sim.on_change = Some(manager);
-    sim.run(10000000.0);
+    sim.run(100.0);
 
     println!(
         "t={:.1} iron={} gear={} gearbox={}",

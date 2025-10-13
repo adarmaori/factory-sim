@@ -1,5 +1,5 @@
-use crate::sim::{BufId, Buffer, Sim};
-use tracing::{debug, error};
+use crate::sim::{BufId, Buffer, Sim, SimError};
+use tracing::debug;
 
 impl Sim {
     pub fn add_buffer(&mut self, buf: Buffer) -> BufId {
@@ -8,44 +8,55 @@ impl Sim {
         self.next_buf_id += 1;
         id
     }
-    fn set_buffer(&mut self, b: BufId, amount: usize) {
-        let buf = self.buffers.get_mut(&b).unwrap();
-        if amount > buf.capacity {
-            error!(
-                ?b,
-                time = self.time,
-                amount = amount,
-                capacity = buf.capacity,
-                "tried to overfill buffer"
-            );
+
+    pub fn get_buffer(&self, b: BufId) -> Result<&Buffer, SimError> {
+        if let Some(res) = self.buffers.get(&b) {
+            Ok(res)
         } else {
-            buf.amount = amount;
+            Err(SimError::BufferDoesntExist(b))
         }
     }
-    pub(crate) fn handle_set_buffer(&mut self, b: BufId, amount: usize) {
-        debug!(?b, time = self.time, "set_buffer to {}", amount);
-        self.set_buffer(b, amount);
-    }
 
-    pub(crate) fn handle_add_to_buffer(&mut self, b: BufId, amount: usize) {
-        debug!(?b, time = self.time, "adding {} to buffer", amount);
-        let current = self.buffers.get(&b).unwrap().amount;
-        self.set_buffer(b, amount + current);
-    }
-
-    pub(crate) fn handle_take_from_buffer(&mut self, b: BufId, amount: usize) {
-        debug!(?b, time = self.time, "adding {} to buffer", amount);
-        let current = self.buffers.get(&b).unwrap().amount;
-        if current < amount {
-            error!(
-                ?b,
-                time = self.time,
-                amount = amount,
-                exists = current,
-                "tried to take from buffer more than buffer has"
-            );
+    pub fn get_buffer_mut(&mut self, b: BufId) -> Result<&mut Buffer, SimError> {
+        if let Some(res) = self.buffers.get_mut(&b) {
+            Ok(res)
         } else {
-            self.set_buffer(b, current - amount);
+            Err(SimError::BufferDoesntExist(b))
+        }
+    }
+
+    pub(crate) fn handle_set_buffer(&mut self, b: BufId, amount: usize) -> Result<bool, SimError> {
+        debug!(?b, time = self.time, "set_buffer to {}", amount);
+        let buf = self.get_buffer_mut(b)?;
+        match buf.set_amount(amount) {
+            Ok(()) => Ok(true),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub(crate) fn handle_add_to_buffer(
+        &mut self,
+        b: BufId,
+        amount: usize,
+    ) -> Result<bool, SimError> {
+        debug!(?b, time = self.time, "adding {} to buffer", amount);
+        let buf = self.get_buffer_mut(b)?;
+        match buf.add_amount(amount) {
+            Ok(()) => Ok(true),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub(crate) fn handle_take_from_buffer(
+        &mut self,
+        b: BufId,
+        amount: usize,
+    ) -> Result<bool, SimError> {
+        debug!(?b, time = self.time, "taking {} from buffer", amount);
+        let buf = self.get_buffer_mut(b)?;
+        match buf.take_amount(amount) {
+            Ok(()) => Ok(true),
+            Err(e) => Err(e),
         }
     }
 }
